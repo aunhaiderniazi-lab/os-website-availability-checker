@@ -1,0 +1,10 @@
+# Format: PRIORITY|NAME|URL|TIMEOUT_SECONDS
+# Priority: 1 = Critical, 2 = Normal, 3 = Low
+1|Google|https://www.google.com|3
+1|GitHub|https://github.com|3
+1|Simulated Down Endpoint|http://127.0.0.1:59999/health|2
+2|Higher Education Commission PK|https://www.hec.gov.pk|5
+2|Foundation University|https://fui.edu.pk|5
+2|HTTPBin Status 200|https://httpbin.org/status/200|4
+3|Python Docs|https://docs.python.org|4
+3|Wikipedia|https://www.wikipedia.org|4
