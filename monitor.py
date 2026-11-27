@@ -21,6 +21,7 @@ import socket
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -91,13 +92,15 @@ def probe_url(target: dict) -> dict:
     up = False
     error_msg = ""
 
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "OS-Availability-Checker/1.0"},
-        method="GET",
-    )
-
     try:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError(f"Unsupported URL: {url}")
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "OS-Availability-Checker/1.0"},
+            method="GET",
+        )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             status_code = resp.getcode()
             up = 200 <= status_code < 400
@@ -106,6 +109,9 @@ def probe_url(target: dict) -> dict:
         error_msg = f"HTTP {e.code}"
     except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as e:
         error_msg = str(getattr(e, "reason", e))
+    except Exception as e:
+        # A bad target must never kill a worker: record it as a failed probe.
+        error_msg = f"{type(e).__name__}: {e}"
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
     return {
@@ -126,21 +132,23 @@ class AvailabilityMonitor:
     """Coordinates Producer-Consumer threads, Semaphore, Mutex metrics, and logging."""
 
     def __init__(self, targets: List[dict], num_workers: int = 4):
+        if num_workers < 1:
+            raise ValueError("Number of workers must be at least 1.")
         self.targets = targets
         self.num_workers = num_workers
         self.queue = BoundedPriorityQueue(capacity=MAX_BUFFER_SIZE)
         self.net_semaphore = threading.Semaphore(num_workers)
         self.metrics_lock = threading.Lock()
         self.log_lock = threading.Lock()
-        self.metrics: Dict[str, dict] = {
-            t["url"]: {"name": t["name"], "total": 0, "up": 0, "latencies": []}
+        self.metrics: Dict[tuple, dict] = {
+            (t["name"], t["url"]): {"name": t["name"], "total": 0, "up": 0, "latencies": []}
             for t in targets
         }
 
     def _record_result(self, res: dict) -> None:
         # Critical Section 1: Update shared metrics dictionary
         with self.metrics_lock:
-            entry = self.metrics[res["url"]]
+            entry = self.metrics[(res["name"], res["url"])]
             entry["total"] += 1
             if res["up"]:
                 entry["up"] += 1
@@ -161,6 +169,13 @@ class AvailabilityMonitor:
     def _producer(self, cycles: int, interval: float) -> None:
         seq = 0
         cycle = 0
+        try:
+            self._produce(cycles, interval)
+        finally:
+            # Always unblock consumers, even if a malformed target raises.
+            self.queue.close()
+
+    def _produce(self, cycles: int, interval: float) -> None:
         while not shutdown_event.is_set():
             if cycles > 0 and cycle >= cycles:
                 break
@@ -182,8 +197,6 @@ class AvailabilityMonitor:
                 break
             shutdown_event.wait(timeout=interval)
 
-        self.queue.close()
-
     def _consumer(self) -> None:
         while True:
             task = self.queue.get()
@@ -201,6 +214,7 @@ class AvailabilityMonitor:
             self._record_result(res)
 
     def run(self, cycles: int = 1, interval: float = 5.0) -> float:
+        shutdown_event.clear()   # a previous SIGINT must not make this run a no-op
         start = time.perf_counter()
         workers = [
             threading.Thread(target=self._consumer, name=f"Worker-{i+1}", daemon=False)
@@ -283,8 +297,15 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=5.0, help="Seconds between cycles")
     args = parser.parse_args()
 
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
+
     with open(args.config, "r", encoding="utf-8") as f:
         targets = json.load(f)
+    if not isinstance(targets, list) or any(
+        not isinstance(t, dict) or "name" not in t or "url" not in t for t in targets
+    ):
+        parser.error("config must be a JSON list of objects with 'name' and 'url'")
 
     if args.mode == "benchmark":
         run_benchmark(targets, args.workers)

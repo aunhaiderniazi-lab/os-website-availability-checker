@@ -76,6 +76,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ ! "$WORKERS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: --workers must be a positive integer." >&2
+    exit 1
+fi
+
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "Error: Config file '$CONFIG_FILE' not found." >&2
     exit 1
@@ -139,7 +144,7 @@ probe_endpoint() {
 
 # Load & sort targets by priority (1 = Highest priority first)
 load_sorted_targets() {
-    grep -vE '^\s*(#|$)' "$CONFIG_FILE" | sort -t'|' -k1,1n
+    grep -vE '^[[:space:]]*(#|$)' "$CONFIG_FILE" | sort -t'|' -k1,1n
 }
 
 run_concurrent_cycle() {
