@@ -1,0 +1,10 @@
+[
+  { "name": "Google", "url": "https://www.google.com", "priority": 1, "timeout": 3 },
+  { "name": "GitHub", "url": "https://github.com", "priority": 1, "timeout": 3 },
+  { "name": "Higher Education Commission PK", "url": "https://www.hec.gov.pk", "priority": 2, "timeout": 5 },
+  { "name": "Foundation University", "url": "https://fui.edu.pk", "priority": 2, "timeout": 5 },
+  { "name": "Python Docs", "url": "https://docs.python.org", "priority": 3, "timeout": 4 },
+  { "name": "Wikipedia", "url": "https://www.wikipedia.org", "priority": 3, "timeout": 4 },
+  { "name": "HTTPBin Status 200", "url": "https://httpbin.org/status/200", "priority": 2, "timeout": 4 },
+  { "name": "Simulated Down Endpoint", "url": "http://127.0.0.1:59999/health", "priority": 1, "timeout": 2 }
+]
