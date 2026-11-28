@@ -167,8 +167,6 @@ class AvailabilityMonitor:
                 f.write(line + "\n")
 
     def _producer(self, cycles: int, interval: float) -> None:
-        seq = 0
-        cycle = 0
         try:
             self._produce(cycles, interval)
         finally:
@@ -176,6 +174,8 @@ class AvailabilityMonitor:
             self.queue.close()
 
     def _produce(self, cycles: int, interval: float) -> None:
+        seq = 0
+        cycle = 0
         while not shutdown_event.is_set():
             if cycles > 0 and cycle >= cycles:
                 break
